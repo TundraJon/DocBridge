@@ -361,6 +361,7 @@ C --> D[Clipboard]
     <div class="toolbar">
       <button class="btn secondary" id="clear-btn">Clear Document</button>
       <button class="btn" id="copy-btn">Copy Rich HTML</button>
+      <button class="btn" id="wa-copy-btn">Copy for WhatsApp</button>
     </div>
   </footer>
 </div>
@@ -996,6 +997,117 @@ document.getElementById('copy-btn').addEventListener('click', () => {
   if (!lastCompiler || lastCompiler.raw.trim() === '') { showToast('Nothing to copy yet'); return; }
   copyHtmlToClipboard(wrapBoilerplate(previewEl.innerHTML));
 });
+
+/* ============ WHATSAPP EXPORT ============ */
+// Converts Markdown source to WhatsApp markup. Walks marked's token tree (not regex on raw text)
+// so code blocks, nesting and list numbering stay correct. WhatsApp has no underline, no link
+// text, no headings, no tables and no escape character, so those get the fallbacks below.
+function markdownToWhatsApp(md) {
+  // marked HTML-escapes inline text and codespan content; WhatsApp is plain text, so undo it.
+  // &amp; must be decoded last or "&amp;lt;" would turn into "<" instead of "&lt;".
+  const unescapeHtml = (s) => String(s)
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+
+  // plain=true drops all markup. Used for table cells (they live inside a monospace block,
+  // where * and _ would show literally) and headings (already wrapped in * *).
+  const inline = (tokens, plain) => (tokens || []).map((t) => {
+    switch (t.type) {
+      case 'strong': return plain ? inline(t.tokens, true) : '*' + inline(t.tokens) + '*';
+      case 'em':     return plain ? inline(t.tokens, true) : '_' + inline(t.tokens) + '_';
+      case 'del':    return plain ? inline(t.tokens, true) : '~' + inline(t.tokens) + '~';
+      case 'codespan': return plain ? unescapeHtml(t.text) : '`' + unescapeHtml(t.text) + '`';
+      case 'br':     return '\n';
+      case 'escape': return unescapeHtml(t.text);
+      case 'image':  return unescapeHtml(t.text || ''); // alt text only
+      case 'link': {
+        const label = inline(t.tokens, plain);
+        // Bare URLs (autolinks) would print twice, so only show the href when the label differs.
+        return unescapeHtml(label) === t.href ? t.href : label + ' (' + t.href + ')';
+      }
+      case 'footnoteRef': return '[' + t.id + ']';
+      case 'html':   return /^\s*<!--/.test(t.raw) ? '' : t.raw.replace(/<[^>]+>/g, '');
+      default:       return t.tokens ? inline(t.tokens, plain) : unescapeHtml(t.text != null ? t.text : t.raw || '');
+    }
+  }).join('');
+
+  const fence = (code) => '```\n' + code.replace(/\n+$/, '') + '\n```';
+
+  const renderTable = (t) => {
+    const rows = [t.header.map((c) => inline(c.tokens, true))]
+      .concat(t.rows.map((r) => r.map((c) => inline(c.tokens, true))));
+    const widths = rows[0].map((_, i) => Math.max(...rows.map((r) => (r[i] || '').length), 3));
+    const line = (r) => r.map((c, i) => (c || '').padEnd(widths[i])).join(' | ').replace(/\s+$/, '');
+    const rule = widths.map((w) => '-'.repeat(w)).join('-+-');
+    return fence([line(rows[0]), rule].concat(rows.slice(1).map(line)).join('\n'));
+  };
+
+  const renderList = (list, depth) => {
+    const pad = '  '.repeat(depth);
+    let n = Number(list.start) || 1;
+    return list.items.map((item) => {
+      const marker = list.ordered ? (n++) + '.' : '-';
+      const prefix = item.task ? (item.checked ? '☑' : '☐') : marker;
+      const body = item.tokens
+        .filter((t) => t.type !== 'space' && t.type !== 'checkbox')
+        .map((t) => t.type === 'list' ? renderList(t, depth + 1) : block(t));
+      return pad + prefix + ' ' + body.join('\n');
+    }).join('\n');
+  };
+
+  const block = (t) => {
+    switch (t.type) {
+      case 'space': return '';
+      case 'heading': return '*' + inline(t.tokens, true) + '*';
+      case 'paragraph': {
+        // Display math ($$...$$) is shown as its source in a fenced block; inline $x$ stays as text.
+        const m = t.text.trim().match(/^\$\$([\s\S]+)\$\$$/);
+        return m ? fence(m[1].trim()) : inline(t.tokens);
+      }
+      case 'text': return t.tokens ? inline(t.tokens) : unescapeHtml(t.text);
+      case 'code': return fence(t.text); // covers mermaid too: its source goes in the fence
+      case 'blockquote': return t.tokens.map(block).filter(Boolean).join('\n\n').split('\n').map((l) => '> ' + l).join('\n');
+      case 'list': return renderList(t, 0);
+      case 'hr': return '———';
+      case 'table': return renderTable(t);
+      case 'html': return /^\s*<!--[\s\S]*-->\s*$/.test(t.raw) ? '' : t.raw.replace(/<[^>]+>/g, '').trim();
+      case 'footnote': return '[' + t.id + '] ' + t.text;
+      case 'definitionList': return '*' + t.term + '*\n' + t.defs.map((d) => '  ' + d).join('\n');
+      default: return t.tokens ? inline(t.tokens) : unescapeHtml(t.text != null ? t.text : t.raw || '');
+    }
+  };
+
+  return marked.lexer(md).map(block).filter((s) => s !== '').join('\n\n').trim();
+}
+
+// WhatsApp only takes plain text on paste, so this writes text/plain only (no HTML flavor).
+async function copyWhatsAppToClipboard() {
+  if (!lastCompiler || lastCompiler.raw.trim() === '') { showToast('Nothing to copy yet'); return; }
+  const text = markdownToWhatsApp(lastCompiler.raw);
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      fallbackCopyText(text);
+    }
+  } catch (e) {
+    fallbackCopyText(text); // clipboard API can be blocked (permissions, insecure context, WebView)
+  }
+  showToast('✓ WhatsApp text copied');
+}
+
+function fallbackCopyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
+
+document.getElementById('wa-copy-btn').addEventListener('click', copyWhatsAppToClipboard);
 
 document.getElementById('clear-btn').addEventListener('click', () => {
   inputEl.value = '';
