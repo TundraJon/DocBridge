@@ -3,23 +3,7 @@ Markdown to Docs pipeline
 
 ## Build Queue
 
-### Q2. Browser install icon + manifest — **Not yet authorized**
-
-Make DocBridge installable from browsers with a proper icon. No service worker and no offline caching (Jon's call: the CDN libraries make offline caching impractical).
-
-- New `manifest.json`: name "DocBridge Pro", short_name "DocBridge", `start_url` "./", `scope` "./", `display` "standalone", theme/background colors, icon list. All paths relative, because the site is hosted under `/DocBridge/`.
-- New `icons/` folder with generated placeholder PNGs: 192, 512, maskable 512, apple-touch 180, favicon 32. Simple "DB" bridge mark on the app's blue (`#1a73e8`). Easy to swap for real art later.
-- `index.html` `<head>`: add `<link rel="manifest">`, `<link rel="icon">`, `<link rel="apple-touch-icon">`, `<meta name="theme-color">`. Nothing else changes.
-
-*(Added by Claude. Change before authorizing if wanted.)*
-- Icon style: white "DB" with a small arch (bridge) on blue, padded inside the maskable safe zone.
-- Theme color `#1a73e8`, background `#f1f3f4` (both already in the app's CSS).
-
-Risks: low. Additive. Correction to my earlier claim: current Chrome can offer install without a service worker, but older Android Chrome may only add a shortcut. Needs a real-device check.
-
-Needs a real-device check after build:
-- [ ] Chrome Android: "Install app" appears and the home screen icon looks right.
-- [ ] Tab favicon shows on desktop.
+_Empty — nothing here yet._
 
 ## Build Planner
 
@@ -55,3 +39,19 @@ Needs a real-device check:
 - [ ] Paste into WhatsApp on Android and iOS: bold, italic, strike, code, quote and lists render.
 - [ ] Phone-width layout of the three footer buttons on a real device.
 - [ ] Long documents: the button does not enforce WhatsApp's message length cap (about 65k chars).
+
+### 3. Browser install icon + manifest (Q2)
+- [x] `manifest.json` added: name "DocBridge Pro", short_name "DocBridge", `start_url` and `scope` "./", `display` standalone, theme `#1a73e8`, background `#f1f3f4`, three icons (192 any, 512 any, 512 maskable). All paths relative for the `/DocBridge/` subfolder.
+- [x] `icons/` added: `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon-180.png`, `favicon-32.png`. Generated placeholder: white "DB" with a bridge arch on app blue. Swap for real art later (same filenames).
+- [x] `index.html` `<head>`: added `<link rel="manifest">`, `<link rel="icon">`, `<link rel="apple-touch-icon">`, `<meta name="theme-color">`. Nothing else touched.
+- [x] No service worker, no offline caching (Jon's call).
+
+Verification: Served the repo under `/DocBridge/` on localhost in Chromium and ran Chrome's own checks (`Page.getAppManifest`, `Page.getInstallabilityErrors`): manifest parses with no errors, installability errors none. Head tags resolve to the right URLs. Re-ran the WhatsApp and Rich HTML copy checks with the libraries served locally: 0 page errors. Viewed the 512 and maskable icons: all artwork is inside the maskable safe zone.
+
+Noted, not fixed:
+- Existing: if a CDN fails to load, `mermaid.initialize(...)` throws "mermaid is not defined" at startup (offline item in the Planner).
+
+Needs a real-device check:
+- [ ] Chrome Android: "Install app" appears (no service worker, so older versions may only offer "Add to Home screen") and the home screen icon looks right.
+- [ ] iOS Safari: Add to Home Screen uses the apple-touch icon.
+- [ ] Desktop tab shows the favicon.
