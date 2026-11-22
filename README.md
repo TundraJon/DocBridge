@@ -7,7 +7,15 @@ _Empty — nothing here yet._
 
 ## Build Planner
 
-_Empty — nothing here yet._
+**Ideas**
+- **Telegram and Slack copy buttons.** Reuse `markdownToWhatsApp` as the base, with a per-target mapping table (Telegram MarkdownV2 and Slack mrkdwn differ from WhatsApp). Not designed, not authorized.
+- **Auto-split long documents for WhatsApp.** Split at headings so each piece fits under WhatsApp's length cap (about 65k chars), with one copy button per piece, like the existing chunk bar. Not designed, not authorized.
+- **Live WhatsApp preview pane.** A third pane (or toggle) showing the WhatsApp text as it will paste, so it can be checked before copying. Not designed, not authorized.
+
+**Bugs (found, not fixed)**
+- **Footnote paragraph split.** `Text[^1]` followed by a `[^1]:` definition splits into two paragraphs, in the preview and in the WhatsApp output. Cause: the footnote extension's block `start()` cuts the paragraph at `[^`. Not authorized.
+- **Inline HTML dropped from WhatsApp output.** A literal `<tag>` typed in the source is treated as HTML and stripped, not copied as text. Not authorized.
+- **Startup error when a CDN fails.** If marked, KaTeX, highlight.js or Mermaid fails to load, `mermaid.initialize(...)` throws "mermaid is not defined" at startup. Not authorized.
 
 ## Build Log
 
