@@ -7,7 +7,7 @@ _Empty — nothing here yet._
 
 ## Build Planner
 
-- **Offline support (CDN dependencies).** `index.html` loads marked, KaTeX (CSS + JS), highlight.js (CSS + JS), and Mermaid from CDNs (jsdelivr, cdnjs). It does not work offline, and it breaks if a CDN is down or blocked. Possible fix: inline the libraries into the single file. Tradeoff: file size grows a lot (Mermaid is the heavy one). Not designed, not authorized.
+_Empty — nothing here yet._
 
 ## Build Log
 
