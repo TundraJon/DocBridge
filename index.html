@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DocBridge Pro // Markdown to Docs Pipeline</title>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+<style>
+:root {
+  --primary: #1a73e8;
+  --primary-hover: #1557b0;
+  --bg: #f1f3f4;
+  --border: #dadce0;
+  --text: #202124;
+  --text-secondary: #5f6368;
+  --success: #137333;
+  --warning: #b06000;
+  --danger: #c5221f;
+  --card-bg: #ffffff;
+  --panel-bg: #fafafa;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100vh;
+  height: -webkit-fill-available;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+}
+.app { display: flex; flex-direction: column; height: 100%; padding: 8px; gap: 8px; }
+header { text-align: center; padding: 4px 0 0 0; }
+header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.3px; color: #111; }
+header p { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+.workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+}
+@media (max-width: 700px) {
+  .workspace { flex-direction: column; }
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: flex 0.25s cubic-bezier(0.4,0,0.2,1), min-width 0.25s, min-height 0.25s;
+}
+.pane.minimized {
+  flex: 0 0 38px !important;
+}
+@media (min-width: 701px) {
+  .pane.minimized { min-width: 38px; }
+}
+@media (max-width: 700px) {
+  .pane.minimized { min-height: 38px; }
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+  flex-shrink: 0;
+}
+.pane.minimized .pane-header { border-bottom: none; }
+#pane-md .pane-header { background: #dbc1ac; }
+#pane-preview .pane-header { background: #6eddfd; }
+.pane-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-secondary); }
+.pane-controls { display: flex; gap: 4px; }
+.pane-btn {
+  background: none; border: none; color: var(--text-secondary); cursor: pointer;
+  font-size: 13px; width: 24px; height: 24px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+}
+#wrap-toggle {
+  font-size: 19px;
+  color: #444;
+}
+#wrap-toggle.active {
+  color: var(--primary);
+}
+.pane-btn:hover { background: rgba(0,0,0,0.06); color: var(--text); }
+.pane-btn.active { color: var(--primary); }
+
+.pane-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.pane.minimized .pane-body { display: none; }
+
+textarea#markdown-input {
+  flex: 1;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 14px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  background-color: var(--panel-bg);
+  color: var(--text);
+}
+textarea#markdown-input.nowrap { white-space: pre; overflow-wrap: normal; }
+
+#preview-window { flex: 1; overflow: auto; padding: 14px; }
+.preview-html { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #333333; }
+.preview-html h1 { font-size: 24pt; font-weight: bold; margin: 12pt 0 6pt 0; color: #111; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+.preview-html h2 { font-size: 18pt; font-weight: bold; margin: 12pt 0 6pt 0; color: #222; }
+.preview-html h3 { font-size: 14pt; font-weight: bold; margin: 12pt 0 4pt 0; color: #333; }
+.preview-html p { margin-bottom: 8pt; text-align: justify; }
+.preview-html ul, .preview-html ol { margin-bottom: 8pt; padding-left: 24px; }
+.preview-html li { margin-bottom: 2px; }
+.preview-html code { font-family: monospace; background-color: #f1f3f4; padding: 2px 5px; border-radius: 4px; font-size: 90%; color: #c7254e; }
+.preview-html pre { background-color: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 8pt; border: 1px solid #e1e4e8; overflow-x: auto; }
+.preview-html pre code { background: transparent; padding: 0; color: inherit; font-size: 13px; white-space: pre; display: block; }
+.preview-html table { border-collapse: collapse; margin-bottom: 10pt; width: 100%; }
+.preview-html td, .preview-html th { border: 1px solid var(--border); padding: 6px; }
+.preview-html img { max-width: 100%; }
+.preview-html .mermaid-wrap { text-align: center; margin-bottom: 10pt; }
+.preview-html .mermaid-error { font-size: 11px; color: var(--danger); background: #fce8e6; padding: 8px; border-radius: 4px; }
+
+footer { flex-shrink: 0; }
+.toolbar { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+.btn {
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  padding: 14px 18px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: background-color 0.2s, transform 0.1s;
+  flex: 1;
+}
+.btn:hover { background-color: var(--primary-hover); }
+.btn:active { transform: scale(0.99); }
+.btn.secondary { background-color: #ffffff; color: var(--text); border: 1px solid var(--border); flex: 0 0 auto; }
+.btn.secondary:hover { background-color: #f1f3f4; }
+.btn.toggle.on { background-color: #e8f0fe; color: var(--primary); border-color: var(--primary); }
+
+.chunk-bar {
+  display: none;
+  gap: 6px;
+  flex-wrap: wrap;
+  background: #e8eaed;
+  padding: 8px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  max-height: 90px;
+  overflow-y: auto;
+}
+.chunk-bar.show { display: flex; }
+.btn-chunk {
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: var(--text);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-chunk:hover { background-color: #f1f3f4; border-color: #9aa0a6; }
+.btn-chunk.copied { background-color: #e6f4ea; color: var(--success); border-color: #34a853; font-weight: 700; }
+.btn-chunk.was-copied { color: var(--success); border-color: #34a853; }
+
+#toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #202124;
+  color: white;
+  padding: 10px 22px;
+  border-radius: 24px;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+  z-index: 2000;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+/* Telemetry content (lives inside the preview pane header area when not minimized, as a collapsible row) */
+.telemetry {
+  border-top: 1px solid var(--border);
+  background: var(--panel-bg);
+  padding: 10px 14px;
+  font-size: 12px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.telemetry-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.stats-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  font-family: monospace;
+  font-size: 11.5px;
+}
+.stats-grid .stats-val { font-weight: 600; color: #000; }
+.status-badge {
+  display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 12px;
+  padding: 3px 8px; border-radius: 12px; width: fit-content;
+}
+.status-badge.safe { background: #e6f4ea; color: var(--success); }
+.status-badge.large { background: #fef7e0; color: var(--warning); }
+.status-badge.fail { background: #fce8e6; color: var(--danger); }
+.score-box-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.score-box {
+  background: #fff; padding: 8px 10px; border-radius: 6px; border-left: 4px solid var(--primary);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05); flex: 1; min-width: 140px;
+}
+.score-box.word { border-left-color: #2b579a; }
+.score-title { font-weight: 700; font-size: 11px; color: #333; }
+.stars { color: #f4b400; font-size: 14px; letter-spacing: 0.5px; }
+.score-desc { font-size: 10.5px; color: var(--text-secondary); }
+.warning-item { font-size: 11px; color: var(--warning); line-height: 1.4; }
+.warning-item.clean { color: var(--success); }
+.telemetry-toggle {
+  background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 11px;
+  text-decoration: underline; align-self: flex-start; padding: 0;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>DocBridge Pro</h1>
+    <p>Markdown &rarr; High-Fidelity Google Docs / Microsoft Word Pipeline</p>
+  </header>
+
+  <div class="workspace">
+    <div class="pane" id="pane-md">
+      <div class="pane-header">
+        <span class="pane-title">Markdown</span>
+        <div class="pane-controls">
+          <button class="pane-btn" id="wrap-toggle" title="Toggle word wrap">&#8629;</button>
+          <button class="pane-btn" id="md-max-btn" title="Maximize">&#x25A1;</button>
+          <button class="pane-btn" id="md-min-btn" title="Minimize">&#x25BC;</button>
+        </div>
+      </div>
+      <div class="pane-body">
+        <textarea id="markdown-input" placeholder="# Welcome to DocBridge Pro
+
+Paste Markdown here. It converts live and pastes cleanly into Google Docs or Microsoft Word.
+
+## Feature Matrix
+
+| Phase | Role | Status |
+| :--- | :--- | :--- |
+| Lexer | Tokenize | Complete |
+| Optimizer | Docs/Word compatibility | Ready |
+
+### Math
+
+Inline: $E = mc^2$
+
+Block:
+
+$$\psi(x,t) = A e^{i(kx-\omega t)}$$
+
+### Diagram
+
+```mermaid
+graph TD
+A[Markdown] --> B[AST]
+B --> C[Optimizer]
+C --> D[Clipboard]
+```
+
+> Blockquotes render with a left bar that survives the paste into Docs."></textarea>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-preview">
+      <div class="pane-header">
+        <span class="pane-title">Preview</span>
+        <div class="pane-controls">
+          <button class="pane-btn" id="prev-max-btn" title="Maximize">&#x25A1;</button>
+          <button class="pane-btn" id="prev-min-btn" title="Minimize">&#x25BC;</button>
+        </div>
+      </div>
+      <div class="pane-body">
+        <div id="preview-window">
+          <div id="preview" class="preview-html"></div>
+        </div>
+        <div class="telemetry">
+          <div id="telemetry-header" style="display:flex; align-items:center; justify-content:space-between; background:#c9df8a; margin:-10px -14px 0 -14px; padding:6px 10px 6px 14px; border-radius:0;">
+            <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-secondary);">Document Telemetry</span>
+            <button class="pane-btn telemetry-toggle" id="telemetry-toggle" title="Toggle diagnostics">&#9660;</button>
+          </div>
+          <div id="telemetry-content">
+            <div class="telemetry-row">
+              <div class="stats-grid">
+                <div>MD Size:</div><div id="stat-md-size" class="stats-val">0 KB</div>
+                <div>HTML Size:</div><div id="stat-html-size" class="stats-val">0 KB</div>
+                <div>Chars:</div><div id="stat-chars" class="stats-val">0</div>
+                <div>Words:</div><div id="stat-words" class="stats-val">0</div>
+                <div>Lines:</div><div id="stat-lines" class="stats-val">0</div>
+                <div>Images:</div><div id="stat-images" class="stats-val">0</div>
+                <div>Tables:</div><div id="stat-tables" class="stats-val">0</div>
+                <div>Code Blocks:</div><div id="stat-blocks" class="stats-val">0</div>
+                <div>Links:</div><div id="stat-links" class="stats-val">0</div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                <div id="clip-status" class="status-badge safe">&#x1F7E2; Safe</div>
+                <div id="warnings-box" style="display:flex; flex-direction:column; gap:3px;">
+                  <div id="alert-clean" class="warning-item clean">&#x2713; No compatibility issues detected.</div>
+                  <div id="alert-math" class="warning-item" style="display:none;">&bull; Math compiled to KaTeX nodes.</div>
+                  <div id="alert-mermaid" class="warning-item" style="display:none;">&bull; Mermaid diagrams render here but flatten on paste into Docs/Word.</div>
+                  <div id="alert-html" class="warning-item" style="display:none;">&bull; Raw inline HTML preserved as-is.</div>
+                  <div id="alert-clipsize" class="warning-item" style="display:none;">&bull; Document is large &mdash; consider chunked copy below.</div>
+                </div>
+              </div>
+            </div>
+            <div class="score-box-row">
+              <div class="score-box">
+                <div class="score-title">Google Docs</div>
+                <div id="gdocs-stars" class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+                <div id="gdocs-desc" class="score-desc">100%</div>
+              </div>
+              <div class="score-box word">
+                <div class="score-title">Microsoft Word</div>
+                <div id="word-stars" class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+                <div id="word-desc" class="score-desc">100%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="chunk-bar" id="chunk-bar"></div>
+    <div class="toolbar">
+      <button class="btn secondary" id="clear-btn">Clear Document</button>
+      <button class="btn" id="copy-btn">Copy Rich HTML</button>
+    </div>
+  </footer>
+</div>
+
+<div id="toast">Copied to clipboard</div>
+
+<script>
+const inputEl = document.getElementById('markdown-input');
+const previewEl = document.getElementById('preview');
+const chunkBar = document.getElementById('chunk-bar');
+const toastEl = document.getElementById('toast');
+
+const CHUNK_THRESHOLD_BYTES = 40000;
+const BLOCKQUOTE_COLORS = ['#b0b3b8', '#4a90e2', '#34a853']; // gray, blue, green — depth 3+ repeats green
+
+inputEl.value = "";
+
+mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+/* ============ MARKED EXTENSIONS: FOOTNOTES + DEFINITION LISTS ============ */
+
+// Footnote extension — adds [^1] references and [^1]: definition blocks
+// Uses marked's extension API to inject new token types into the lexer/renderer pipeline
+const footnoteExtension = {
+  name: 'footnote',
+  level: 'block',
+  start(src) { return src.indexOf('[^'); },
+  tokenizer(src) {
+    const match = src.match(/^\[\^([^\]]+)\]:\s+([\s\S]+?)(?=\n\n|\n\[|\n#|$)/);
+    if (match) {
+      return { type: 'footnote', raw: match[0], id: match[1].trim(), text: match[2].trim() };
+    }
+  },
+  renderer(token) {
+    return `<div style="font-size:9pt; color:#555; border-top:1px solid #dadce0; margin-top:4pt; padding-top:2pt;"><sup>${escapeHtml(token.id)}</sup> ${token.text}</div>`;
+  }
+};
+
+const footnoteRefExtension = {
+  name: 'footnoteRef',
+  level: 'inline',
+  start(src) { return src.indexOf('[^'); },
+  tokenizer(src) {
+    const match = src.match(/^\[\^([^\]]+)\]/);
+    if (match) {
+      return { type: 'footnoteRef', raw: match[0], id: match[1].trim() };
+    }
+  },
+  renderer(token) {
+    return `<sup style="color:var(--primary);"><a href="#fn-${escapeHtml(token.id)}" style="text-decoration:none;">[${escapeHtml(token.id)}]</a></sup>`;
+  }
+};
+
+// Definition list extension — adds dl/dt/dd support
+// Pattern: term on its own line followed by ": definition" line(s)
+const definitionListExtension = {
+  name: 'definitionList',
+  level: 'block',
+  start(src) { return src.indexOf('\n:'); },
+  tokenizer(src) {
+    const match = src.match(/^([^\n]+)\n(?:: ([^\n]+)\n?)+/);
+    if (match && src.match(/^[^\n]+\n: /)) {
+      const lines = match[0].split('\n');
+      const term = lines[0].trim();
+      const defs = lines.slice(1).filter(l => l.startsWith(': ')).map(l => l.slice(2).trim());
+      if (defs.length > 0) {
+        return { type: 'definitionList', raw: match[0], term, defs };
+      }
+    }
+  },
+  renderer(token) {
+    const dds = token.defs.map(d => `<dd style="margin-left:24px; margin-bottom:4pt;">${d}</dd>`).join('');
+    return `<dl style="margin-bottom:8pt;"><dt style="font-weight:bold;">${escapeHtml(token.term)}</dt>${dds}</dl>`;
+  }
+};
+
+marked.use({ extensions: [footnoteExtension, footnoteRefExtension, definitionListExtension] });
+
+marked.setOptions({
+  gfm: true,
+  breaks: false
+});
+
+/* ============ PANE MIN/MAX CONTROL ============ */
+const paneMd = document.getElementById('pane-md');
+const panePreview = document.getElementById('pane-preview');
+
+function isStackedLayout() {
+  return window.matchMedia('(max-width: 700px)').matches;
+}
+
+function restoreIconHtml() {
+  return isStackedLayout() ? '&#x2B12;' : '&#x25E7;';
+}
+
+function setPaneState(target) {
+  // target: 'fifty', 'max-md', 'max-preview'
+  paneMd.classList.remove('minimized');
+  panePreview.classList.remove('minimized');
+  const mdBtn = document.getElementById('md-max-btn');
+  const prevBtn = document.getElementById('prev-max-btn');
+  mdBtn.classList.remove('active');
+  prevBtn.classList.remove('active');
+  mdBtn.innerHTML = '&#x25A1;';
+  mdBtn.title = 'Maximize';
+  prevBtn.innerHTML = '&#x25A1;';
+  prevBtn.title = 'Maximize';
+
+  if (target === 'max-md') {
+    panePreview.classList.add('minimized');
+    mdBtn.classList.add('active');
+    mdBtn.innerHTML = restoreIconHtml();
+    mdBtn.title = 'Restore to 50/50';
+  } else if (target === 'max-preview') {
+    paneMd.classList.add('minimized');
+    prevBtn.classList.add('active');
+    prevBtn.innerHTML = restoreIconHtml();
+    prevBtn.title = 'Restore to 50/50';
+  }
+}
+
+document.getElementById('md-max-btn').addEventListener('click', () => {
+  const isMax = document.getElementById('md-max-btn').classList.contains('active');
+  setPaneState(isMax ? 'fifty' : 'max-md');
+});
+document.getElementById('prev-max-btn').addEventListener('click', () => {
+  const isMax = document.getElementById('prev-max-btn').classList.contains('active');
+  setPaneState(isMax ? 'fifty' : 'max-preview');
+});
+document.getElementById('md-min-btn').addEventListener('click', () => {
+  setPaneState('max-preview');
+});
+document.getElementById('prev-min-btn').addEventListener('click', () => {
+  setPaneState('max-md');
+});
+
+window.addEventListener('resize', () => {
+  const mdBtn = document.getElementById('md-max-btn');
+  const prevBtn = document.getElementById('prev-max-btn');
+  if (mdBtn.classList.contains('active')) mdBtn.innerHTML = restoreIconHtml();
+  if (prevBtn.classList.contains('active')) prevBtn.innerHTML = restoreIconHtml();
+});
+
+/* ============ WORD WRAP TOGGLE ============ */
+const wrapToggle = document.getElementById('wrap-toggle');
+let wrapOn = true;
+wrapToggle.addEventListener('click', () => {
+  wrapOn = !wrapOn;
+  inputEl.classList.toggle('nowrap', !wrapOn);
+  wrapToggle.classList.toggle('active', !wrapOn);
+});
+
+/* ============ TELEMETRY COLLAPSE ============ */
+const telemetryToggle = document.getElementById('telemetry-toggle');
+const telemetryContent = document.getElementById('telemetry-content');
+telemetryToggle.addEventListener('click', () => {
+  const hidden = telemetryContent.style.display === 'none';
+  telemetryContent.style.display = hidden ? 'flex' : 'none';
+  telemetryContent.style.flexDirection = 'column';
+  telemetryContent.style.gap = '10px';
+  telemetryToggle.innerHTML = hidden ? '&#9660;' : '&#9650;';
+});
+
+/* ============ COMPILER: normalizer + compatibility optimizer on marked's AST ============ */
+class DocBridgeCompiler {
+  constructor(markdownText) {
+    this.raw = markdownText;
+    this.ast = [];
+    this.html = "";
+    this.mermaidBlocks = []; // {id, code}
+    this.metrics = {
+      mdSize: new Blob([markdownText]).size,
+      htmlSize: 0,
+      chars: markdownText.length,
+      words: markdownText.trim() === "" ? 0 : markdownText.trim().split(/\s+/).length,
+      lines: markdownText.trim() === "" ? 0 : markdownText.split('\n').length,
+      images: 0,
+      tables: 0,
+      blocks: 0,
+      links: 0,
+      hasMath: false,
+      hasMermaid: false,
+      hasHtml: false
+    };
+  }
+
+  compile() {
+    if (this.raw.trim() === "") return "";
+
+    this.ast = marked.lexer(this.raw);
+    this.normalize(this.ast);
+    this.optimize(this.ast);
+    this.html = marked.parser(this.ast);
+    this.html = this.processMath(this.html);
+    this.html = fixStrikethrough(this.html);
+
+    this.metrics.htmlSize = new Blob([this.html]).size;
+    return this.html;
+  }
+
+  normalize(nodes) {
+    nodes.forEach(node => {
+      if (node.type === 'text' && node.text === '') node.text = ' ';
+      if (node.type === 'image') this.metrics.images++;
+      if (node.type === 'link') this.metrics.links++;
+      if (node.tokens) this.normalize(node.tokens);
+      if (node.items) this.normalize(node.items);
+    });
+  }
+
+  // Compatibility Optimizer: rewrites AST nodes for better Docs/Word paste fidelity
+  optimize(nodes) {
+    for (let i = 0; i < nodes.length; i++) {
+      let node = nodes[i];
+
+      if (node.type === 'table') this.metrics.tables++;
+      // HTML comments are not meaningful "raw HTML" for compatibility purposes — they're invisible
+      // markers (e.g. <!-- TEST-ID: ... -->) and shouldn't trigger the raw-HTML warning or score hit.
+      if (node.type === 'html' && !/^\s*<!--[\s\S]*-->\s*$/.test(node.raw || '')) this.metrics.hasHtml = true;
+
+      // Mermaid fenced code blocks -> placeholder div, rendered post-hoc by mermaid.js
+      if (node.type === 'code' && node.lang === 'mermaid') {
+        this.metrics.hasMermaid = true;
+        const id = 'mermaid-' + Math.random().toString(36).slice(2, 9);
+        this.mermaidBlocks.push({ id, code: node.text });
+        nodes[i] = { type: 'html', raw: node.raw, text: `<div class="mermaid-wrap"><div class="mermaid" id="${id}">${escapeHtml(node.text)}</div></div>` };
+        continue;
+      }
+
+      if (node.type === 'code') this.metrics.blocks++;
+
+      // Blockquote -> single-cell table trick (Docs strips blockquote border-left on paste).
+      // Nested blockquotes get a distinct bar color per depth level (gray -> blue -> green,
+      // repeating green for anything deeper) since Docs' paste sanitizer collapses nested
+      // <blockquote> tags and loses the visual distinction between levels otherwise.
+      if (node.type === 'blockquote') {
+        const innerHtml = this.renderBlockquoteTokens(node.tokens, 1);
+        nodes[i] = {
+          type: 'html',
+          raw: node.raw,
+          text: this.wrapBlockquoteCell(innerHtml, BLOCKQUOTE_COLORS[0])
+        };
+      }
+
+      if (node.tokens) this.optimize(node.tokens);
+      if (node.items) this.optimize(node.items);
+    }
+  }
+
+  // Renders a blockquote's inner tokens to HTML, recursively converting any nested
+  // blockquote found inside (even inside a list item) to a colored-bar cell at depth+1.
+  renderBlockquoteTokens(tokens, depth) {
+    const processed = tokens.map(t => this.replaceNestedBlockquotes(t, depth));
+    return marked.parser(processed);
+  }
+
+  replaceNestedBlockquotes(t, depth) {
+    if (t.type === 'blockquote') {
+      const color = BLOCKQUOTE_COLORS[Math.min(depth, BLOCKQUOTE_COLORS.length - 1)];
+      const inner = this.renderBlockquoteTokens(t.tokens, depth + 1);
+      return { type: 'html', raw: t.raw, text: this.wrapBlockquoteCell(inner, color) };
+    }
+    if (t.tokens) t.tokens = t.tokens.map(tt => this.replaceNestedBlockquotes(tt, depth));
+    if (t.items) t.items.forEach(it => { if (it.tokens) it.tokens = it.tokens.map(tt => this.replaceNestedBlockquotes(tt, depth)); });
+    return t;
+  }
+
+  wrapBlockquoteCell(innerHtml, color) {
+    return `<table border="0" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin-bottom: 10pt; width: 100%;"><tr><td style="border-left: 4px solid ${color}; padding: 4pt 0 4pt 12pt; color: #555555; font-style: italic;">${innerHtml.trim()}</td></tr></table>`;
+  }
+
+  // KaTeX pass over rendered HTML — outputs MathML for better Docs/Word paste fidelity.
+  // Strip <annotation> and <annotation-xml> elements: these contain the raw LaTeX source
+  // for screen readers, but Google Docs' paste sanitizer strips the MathML wrapper while
+  // leaving annotation text exposed, causing doubled/garbled equation output.
+  processMath(html) {
+    if (!this.raw.includes('$')) return html;
+    this.metrics.hasMath = true;
+
+    const stripAnnotations = (mathml) => {
+      return mathml
+        .replace(/<annotation-xml[\s\S]*?<\/annotation-xml>/gi, '')
+        .replace(/<annotation[^>]*>[\s\S]*?<\/annotation>/gi, '');
+    };
+
+    html = html.replace(/(?:<p>)?\$\$([\s\S]+?)\$\$(?:<\/p>)?/g, (m, eq) => {
+      try {
+        const rendered = katex.renderToString(eq.trim(), { output: 'mathml', displayMode: true });
+        return '<div style="text-align:center; margin: 12px 0;">' + stripAnnotations(rendered) + '</div>';
+      } catch (e) { return m; }
+    });
+
+    html = html.replace(/\$([^\$\n]+?)\$/g, (m, eq) => {
+      try {
+        return stripAnnotations(katex.renderToString(eq.trim(), { output: 'mathml', displayMode: false }));
+      } catch (e) { return m; }
+    });
+
+    return html;
+  }
+
+  // Semantic chunking for oversized documents — never splits inside tables/lists/code/blockquotes
+  // because those are atomic token types in marked's AST; we only ever split BETWEEN top-level nodes.
+  getSemanticChunks() {
+    const tiers = [
+      { check: (n) => n.type === 'heading' && n.depth === 1 },
+      { check: (n) => n.type === 'heading' && n.depth === 2 },
+      { check: (n) => n.type === 'heading' && n.depth === 3 },
+      { check: (n) => n.type === 'hr' },
+      { check: (n) => n.type === 'paragraph' }
+    ];
+
+    for (const tier of tiers) {
+      let chunks = [];
+      let cluster = [];
+      let label = "Document Start";
+      let valid = true;
+
+      for (let i = 0; i < this.ast.length; i++) {
+        const node = this.ast[i];
+        if (tier.check(node) && cluster.length > 0) {
+          const html = marked.parser(cluster);
+          if (new Blob([html]).size > CHUNK_THRESHOLD_BYTES) { valid = false; break; }
+          chunks.push({ label, nodes: cluster });
+          cluster = [];
+          label = node.type === 'heading' ? node.text.replace(/[*_`]/g, '') :
+                  node.type === 'hr' ? 'Section Split' :
+                  'Section';
+        }
+        cluster.push(node);
+      }
+      if (cluster.length > 0) {
+        const html = marked.parser(cluster);
+        if (new Blob([html]).size > CHUNK_THRESHOLD_BYTES) valid = false;
+        chunks.push({ label, nodes: cluster });
+      }
+
+      if (valid && chunks.length > 1) {
+        return chunks.map(c => ({ title: c.label, html: highlightChunkHtml(wrapBoilerplate(fixStrikethrough(this.processMath(marked.parser(c.nodes))))) }));
+      }
+    }
+    return this.hardByteSplit();
+  }
+
+  hardByteSplit() {
+    let chunks = [];
+    let cluster = [];
+    let part = 1;
+    for (let i = 0; i < this.ast.length; i++) {
+      cluster.push(this.ast[i]);
+      const size = new Blob([marked.parser(cluster)]).size;
+      if (size > CHUNK_THRESHOLD_BYTES && cluster.length > 1) {
+        const popped = cluster.pop();
+        chunks.push({ title: `Segment ${part++}`, html: highlightChunkHtml(wrapBoilerplate(fixStrikethrough(this.processMath(marked.parser(cluster))))) });
+        cluster = [popped];
+      }
+    }
+    if (cluster.length > 0) chunks.push({ title: `Segment ${part}`, html: highlightChunkHtml(wrapBoilerplate(fixStrikethrough(this.processMath(marked.parser(cluster))))) });
+    return chunks;
+  }
+}
+
+function highlightChunkHtml(html) {
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  container.querySelectorAll('pre code').forEach(block => {
+    try { hljs.highlightElement(block); } catch (e) {}
+  });
+  applyPasteCompatibilityFixes(container);
+  return container.innerHTML;
+}
+
+// Google Docs' paste sanitizer strips CSS classes and some elements, so anything relying on
+// our external stylesheet or on form controls needs to be converted to inline styles / plain
+// markup before copy. Runs on both the live preview DOM and detached chunk containers.
+function applyPasteCompatibilityFixes(container) {
+  // (4) Code formatting — inline the base pre/code box styles, and inline each hljs token's
+  // computed color/weight/style so syntax colors survive class stripping.
+  container.querySelectorAll('pre').forEach(pre => {
+    pre.setAttribute('style', 'background-color:#f8f9fa; padding:10px; border-radius:6px; margin-bottom:10pt; border:1px solid #e1e4e8; overflow-x:auto;');
+    const code = pre.querySelector('code');
+    if (code) {
+      code.setAttribute('style', 'background:transparent; padding:0; font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace; font-size:10pt; white-space:pre; display:block; color:#24292e;');
+    }
+  });
+  container.querySelectorAll('pre code span').forEach(span => {
+    try {
+      const cs = window.getComputedStyle(span);
+      let style = `color:${cs.color};`;
+      if (parseInt(cs.fontWeight) >= 600) style += 'font-weight:600;';
+      if (cs.fontStyle === 'italic') style += 'font-style:italic;';
+      span.setAttribute('style', style);
+    } catch (e) {}
+  });
+  container.querySelectorAll('code').forEach(code => {
+    if (code.closest('pre')) return;
+    code.setAttribute('style', 'font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace; background-color:#f1f3f4; padding:2px 5px; border-radius:4px; font-size:90%; color:#c7254e;');
+  });
+
+  // (5) Task list checkboxes — Docs strips <input> form elements entirely on paste, so
+  // swap them for plain Unicode checkbox characters that survive as regular text.
+  container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    const span = document.createElement('span');
+    span.textContent = (cb.checked ? '\u2611' : '\u2610') + ' ';
+    span.setAttribute('style', 'font-family:Arial,sans-serif; margin-right:2px;');
+    cb.replaceWith(span);
+  });
+
+  // (6) Table cell alignment — header cells keep their alignment on paste but data cells
+  // sometimes lose it, so reinforce every data cell's alignment (inline style + legacy
+  // align attribute) using the header row's alignment as the source of truth per column.
+  container.querySelectorAll('table').forEach(table => {
+    const headerRow = table.querySelector('tr');
+    if (!headerRow) return;
+    const aligns = Array.from(headerRow.children).map(c => {
+      const style = c.getAttribute('style') || '';
+      const m = style.match(/text-align:\s*(center|right|left)/i);
+      return m ? m[1].toLowerCase() : null;
+    });
+    table.querySelectorAll('tr').forEach(row => {
+      Array.from(row.children).forEach((cell, i) => {
+        const a = aligns[i];
+        if (a && a !== 'left') {
+          cell.setAttribute('align', a);
+          const existing = cell.getAttribute('style') || '';
+          if (!/text-align/i.test(existing)) cell.setAttribute('style', existing + `text-align:${a};`);
+        }
+      });
+    });
+  });
+
+  // (7) Ordered list numbering — Docs sometimes drops auto-numbering on list items that
+  // contain block content (extra paragraphs, code blocks). Explicit value= attributes force
+  // the correct number regardless of whether Docs' own counter logic gets confused.
+  container.querySelectorAll('ol').forEach(ol => {
+    let start = parseInt(ol.getAttribute('start') || '1', 10);
+    Array.from(ol.children).forEach((li, idx) => {
+      if (li.tagName === 'LI') li.setAttribute('value', start + idx);
+    });
+  });
+}
+
+function fixStrikethrough(html) {
+  return html.replace(/<del>/g, '<span style="text-decoration: line-through;">').replace(/<\/del>/g, '</span>');
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function wrapBoilerplate(innerHtml) {
+  return `<div style="font-family: Arial, sans-serif; font-size: 11pt; color: #333333; line-height: 1.5;"><style>h1{font-size:24pt;font-weight:bold;margin-top:12pt;margin-bottom:6pt;color:#111;}h2{font-size:18pt;font-weight:bold;margin-top:12pt;margin-bottom:6pt;color:#222;}table{border-collapse:collapse;margin-bottom:10pt;width:100%;}td,th{border:1px solid #dadce0;padding:6px;}</style>${innerHtml}</div>`;
+}
+
+/* ============ TELEMETRY UI ============ */
+function renderTelemetry(compiler) {
+  const m = compiler.metrics;
+  document.getElementById('stat-md-size').innerText = (m.mdSize / 1024).toFixed(1) + ' KB';
+  document.getElementById('stat-html-size').innerText = (m.htmlSize / 1024).toFixed(1) + ' KB';
+  document.getElementById('stat-chars').innerText = m.chars.toLocaleString();
+  document.getElementById('stat-words').innerText = m.words.toLocaleString();
+  document.getElementById('stat-lines').innerText = m.lines.toLocaleString();
+  document.getElementById('stat-images').innerText = m.images;
+  document.getElementById('stat-tables').innerText = m.tables;
+  document.getElementById('stat-blocks').innerText = m.blocks;
+  document.getElementById('stat-links').innerText = m.links;
+
+  document.getElementById('alert-math').style.display = m.hasMath ? 'block' : 'none';
+  document.getElementById('alert-mermaid').style.display = m.hasMermaid ? 'block' : 'none';
+  document.getElementById('alert-html').style.display = m.hasHtml ? 'block' : 'none';
+
+  const isEmpty = compiler.raw.trim() === '';
+  const clipBadge = document.getElementById('clip-status');
+  let clipLevel = 'safe';
+  if (!isEmpty) {
+    if (m.htmlSize > 200000) clipLevel = 'fail';
+    else if (m.htmlSize > CHUNK_THRESHOLD_BYTES) clipLevel = 'large';
+  }
+  document.getElementById('alert-clipsize').style.display = clipLevel !== 'safe' ? 'block' : 'none';
+  clipBadge.className = 'status-badge ' + clipLevel;
+  clipBadge.innerText = clipLevel === 'safe' ? '🟢 Safe' : clipLevel === 'large' ? '🟡 Large' : '🔴 May exceed clipboard limits';
+
+  document.getElementById('alert-clean').style.display = (!m.hasMath && !m.hasMermaid && !m.hasHtml && clipLevel === 'safe') ? 'block' : 'none';
+
+  let gScore = 100, wScore = 100;
+  let gIssues = [], wIssues = [];
+  if (!isEmpty) {
+    if (m.hasMermaid) { gScore -= 30; wScore -= 30; gIssues.push('Mermaid diagrams flatten on paste.'); wIssues.push('Mermaid diagrams flatten on paste.'); }
+    if (m.hasMath) { gScore -= 10; wScore -= 20; gIssues.push('Math renders as image-like KaTeX markup.'); wIssues.push('Word formulas may fall back to plain text.'); }
+    if (m.tables) { wScore -= 5; wIssues.push('Table borders may reset to Word defaults.'); }
+    if (m.hasHtml) { gScore -= 10; wScore -= 15; gIssues.push('Raw HTML tags may be stripped.'); wIssues.push('Raw HTML tags may be stripped.'); }
+  }
+  updateScoreUI('gdocs', gScore, gIssues);
+  updateScoreUI('word', wScore, wIssues);
+
+  // Telemetry header color: green if lower score >=50%, red if <50%
+  const lowerScore = Math.min(gScore, wScore);
+  document.getElementById('telemetry-header').style.background = lowerScore >= 50 ? '#c9df8a' : '#ffbaba';
+}
+
+function updateScoreUI(prefix, score, issues) {
+  score = Math.max(0, Math.min(100, score));
+  const stars = Math.round(score / 20);
+  document.getElementById(prefix + '-stars').innerText = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+  document.getElementById(prefix + '-desc').innerText = score + '%' + (issues.length ? ' — ' + issues[0] : '');
+}
+
+/* ============ MERMAID RENDER PASS ============ */
+let mermaidCounter = 0;
+async function renderMermaidBlocks(blocks) {
+  for (const block of blocks) {
+    const el = document.getElementById(block.id);
+    if (!el) continue;
+    try {
+      const { svg } = await mermaid.render('mmd-render-' + (mermaidCounter++), block.code);
+      el.innerHTML = svg;
+    } catch (e) {
+      el.outerHTML = `<div class="mermaid-error">⚠ Mermaid diagram failed to render: ${e.message || 'syntax error'}</div>`;
+    }
+  }
+}
+
+/* ============ MAIN RENDER LOOP ============ */
+let lastCompiler = null;
+
+function render() {
+  const md = inputEl.value;
+  const compiler = new DocBridgeCompiler(md);
+  const html = compiler.compile();
+  previewEl.innerHTML = html;
+  lastCompiler = compiler;
+
+  previewEl.querySelectorAll('pre code').forEach(block => {
+    try { hljs.highlightElement(block); } catch (e) {}
+  });
+  applyPasteCompatibilityFixes(previewEl);
+
+  renderTelemetry(compiler);
+  renderMermaidBlocks(compiler.mermaidBlocks);
+  renderChunkBar(compiler);
+}
+
+const copiedChunkTitles = new Set();
+
+function renderChunkBar(compiler) {
+  if (compiler.metrics.htmlSize <= CHUNK_THRESHOLD_BYTES || compiler.raw.trim() === '') {
+    chunkBar.classList.remove('show');
+    chunkBar.innerHTML = '';
+    return;
+  }
+  const chunks = compiler.getSemanticChunks();
+  chunkBar.innerHTML = '';
+  chunks.forEach((chunk) => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-chunk';
+    const wasCopied = copiedChunkTitles.has(chunk.title);
+    if (wasCopied) btn.classList.add('was-copied');
+    btn.innerText = (wasCopied ? '✓ ' : '') + `Copy: ${chunk.title}`;
+    btn.addEventListener('click', () => {
+      copiedChunkTitles.add(chunk.title);
+      copyHtmlToClipboard(chunk.html, btn, chunk.title);
+    });
+    chunkBar.appendChild(btn);
+  });
+  chunkBar.classList.add('show');
+}
+
+let renderTimer = null;
+inputEl.addEventListener('input', () => {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(render, 150);
+});
+
+/* ============ CLIPBOARD ============ */
+function showToast(msg) {
+  toastEl.innerText = msg;
+  toastEl.style.opacity = '1';
+  setTimeout(() => { toastEl.style.opacity = '0'; }, 1800);
+}
+
+async function copyHtmlToClipboard(html, sourceBtn, chunkTitle) {
+  const plain = htmlToPlainText(html);
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      const item = new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plain], { type: 'text/plain' })
+      });
+      await navigator.clipboard.write([item]);
+    } else {
+      fallbackCopy(html);
+    }
+    showToast('✓ Rich HTML copied to clipboard');
+    if (sourceBtn) {
+      const restoreLabel = chunkTitle ? `✓ Copy: ${chunkTitle}` : sourceBtn.innerText;
+      sourceBtn.classList.add('copied', 'was-copied');
+      sourceBtn.innerText = '✓ Copied';
+      setTimeout(() => {
+        sourceBtn.classList.remove('copied');
+        sourceBtn.innerText = restoreLabel;
+      }, 1500);
+    }
+  } catch (e) {
+    fallbackCopy(html);
+    showToast('✓ Copied (fallback mode)');
+  }
+}
+
+function fallbackCopy(html) {
+  const container = document.createElement('div');
+  container.contentEditable = true;
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  const range = document.createRange();
+  range.selectNodeContents(container);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  document.execCommand('copy');
+  sel.removeAllRanges();
+  document.body.removeChild(container);
+}
+
+function htmlToPlainText(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.innerText || div.textContent || '';
+}
+
+document.getElementById('copy-btn').addEventListener('click', () => {
+  if (!lastCompiler || lastCompiler.raw.trim() === '') { showToast('Nothing to copy yet'); return; }
+  copyHtmlToClipboard(wrapBoilerplate(previewEl.innerHTML));
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  inputEl.value = '';
+  render();
+});
+
+function waitForLibsAndRender(attemptsLeft) {
+  const ready = typeof marked !== 'undefined' && typeof katex !== 'undefined' &&
+                typeof hljs !== 'undefined' && typeof mermaid !== 'undefined';
+  if (ready) {
+    render();
+  } else if (attemptsLeft > 0) {
+    setTimeout(() => waitForLibsAndRender(attemptsLeft - 1), 100);
+  } else {
+    render(); // give up waiting, render anyway so the page isn't stuck blank
+  }
+}
+waitForLibsAndRender(50);
+</script>
+</body>
+</html>
