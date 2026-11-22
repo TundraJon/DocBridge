@@ -3,7 +3,23 @@ Markdown to Docs pipeline
 
 ## Build Queue
 
-_Empty — nothing here yet._
+### Q2. Browser install icon + manifest — **Not yet authorized**
+
+Make DocBridge installable from browsers with a proper icon. No service worker and no offline caching (Jon's call: the CDN libraries make offline caching impractical).
+
+- New `manifest.json`: name "DocBridge Pro", short_name "DocBridge", `start_url` "./", `scope` "./", `display` "standalone", theme/background colors, icon list. All paths relative, because the site is hosted under `/DocBridge/`.
+- New `icons/` folder with generated placeholder PNGs: 192, 512, maskable 512, apple-touch 180, favicon 32. Simple "DB" bridge mark on the app's blue (`#1a73e8`). Easy to swap for real art later.
+- `index.html` `<head>`: add `<link rel="manifest">`, `<link rel="icon">`, `<link rel="apple-touch-icon">`, `<meta name="theme-color">`. Nothing else changes.
+
+*(Added by Claude. Change before authorizing if wanted.)*
+- Icon style: white "DB" with a small arch (bridge) on blue, padded inside the maskable safe zone.
+- Theme color `#1a73e8`, background `#f1f3f4` (both already in the app's CSS).
+
+Risks: low. Additive. Correction to my earlier claim: current Chrome can offer install without a service worker, but older Android Chrome may only add a shortcut. Needs a real-device check.
+
+Needs a real-device check after build:
+- [ ] Chrome Android: "Install app" appears and the home screen icon looks right.
+- [ ] Tab favicon shows on desktop.
 
 ## Build Planner
 
