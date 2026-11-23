@@ -3,7 +3,26 @@ Markdown to Docs pipeline
 
 ## Build Queue
 
-_Empty — nothing here yet._
+### Q3. Replace placeholder icons with Jon's robot-on-bridge art — **Not yet authorized**
+
+Swap the five placeholder PNGs in `icons/` for versions made from Jon's art (robot holding a document on a stone bridge, with MD, Docs and WhatsApp badges). Same filenames, so `manifest.json` and the `<head>` tags need no change.
+
+- Keep the original as `icons/icon-source.jpg` so the PNGs can be regenerated later.
+- `icon-192.png`, `icon-512.png` (any): crop slightly into the art to drop the JPG's white corners, then cut a rounded shape on a transparent background.
+- `icon-maskable-512.png`: full-bleed square. Art scaled down so the MD, Docs and WhatsApp badges stay inside Android's circular safe zone, centered on a sky-to-water gradient sampled from the art's top and bottom edges, edges feathered so there is no hard seam.
+- `apple-touch-icon-180.png`: full-bleed square crop, no transparency.
+- `favicon-32.png`: crop to the robot's head and shoulders (the full scene is unreadable at 32px).
+- Generation is a scratch script (not committed). Each PNG is viewed before commit.
+
+*(Added by Claude. Change before authorizing if wanted.)*
+- Maskable scale about 75%, adjusted after viewing so the badges are clear of the edge.
+- Source art kept in the repo (adds the JPG's file size).
+
+Risks: low, image files only. The maskable seam is the one thing that could look off.
+
+Needs a real-device check after build:
+- [ ] Home screen icon on Android looks right (not clipped).
+- [ ] Tab favicon is recognizable.
 
 ## Build Planner
 
@@ -11,6 +30,7 @@ _Empty — nothing here yet._
 - **Telegram and Slack copy buttons.** Reuse `markdownToWhatsApp` as the base, with a per-target mapping table (Telegram MarkdownV2 and Slack mrkdwn differ from WhatsApp). Not designed, not authorized.
 - **Auto-split long documents for WhatsApp.** Split at headings so each piece fits under WhatsApp's length cap (about 65k chars), with one copy button per piece, like the existing chunk bar. Not designed, not authorized.
 - **Live WhatsApp preview pane.** A third pane (or toggle) showing the WhatsApp text as it will paste, so it can be checked before copying. Not designed, not authorized.
+- **Convert from WhatsApp to Markdown.** A "Convert from WhatsApp" button that rewrites the Markdown pane in place: `*x*` to `**x**`, `_x_` to `*x*`, `~x~` to `~~x~~`, `☐`/`☑` to task items, `———` to a rule; code, quotes and lists already match. Lossy: a standalone `*TEXT*` line could be a heading or just bold, monospace blocks could be tables or code, and `snake_case_words` can false-trigger. Open questions: button vs auto-detect on paste, and bold paragraph (Claude's pick) vs `##` heading. Not designed, not authorized.
 
 **Bugs (found, not fixed)**
 - **Footnote paragraph split.** `Text[^1]` followed by a `[^1]:` definition splits into two paragraphs, in the preview and in the WhatsApp output. Cause: the footnote extension's block `start()` cuts the paragraph at `[^`. Not authorized.
