@@ -24,13 +24,35 @@ Needs a real-device check after build:
 - [ ] Home screen icon on Android looks right (not clipped).
 - [ ] Tab favicon is recognizable.
 
+### Q4. "Convert from WhatsApp" button — **Not yet authorized**
+
+Add a "Convert from WhatsApp" button to the footer toolbar. The user pastes WhatsApp-formatted text into the Markdown pane, clicks it, and the pane's text is rewritten as Markdown in place. Manual button, no auto-detect (Jon's call). Nothing else changes.
+
+- New button `#wa-import-btn` in the footer toolbar, next to `#clear-btn`.
+- New `whatsAppToMarkdown(text)` in `index.html`. Line-based, not blind regex: fenced blocks and inline code are lifted out first and restored untouched.
+- Mapping: `*x*` to `**x**`, `_x_` to `*x*`, `~x~` to `~~x~~`, `_*x*_` / `*_x_*` to `***x***`, `☑` / `☐` to `- [x]` / `- [ ]`, `———` to `---`. `> ` quotes, `- ` bullets, `1.` numbers and code already match Markdown.
+- Standalone bold line: stays a bold paragraph, not a heading (Jon's call).
+- Left as is, because it can't be told apart: monospace blocks (could be tables or code) and `text (url)` (could be a link or plain text).
+- Boundary-aware, like WhatsApp itself: a marker needs non-space text inside it and a word boundary outside, so `snake_case_words` and `2 * 3 * 4` are not converted.
+- Empty pane: toast "Nothing to convert yet". Success: toast "✓ Converted from WhatsApp", then the preview re-renders.
+
+*(Added by Claude. Change before authorizing if wanted.)*
+- The rewrite uses `select()` + `document.execCommand('insertText')` so Ctrl+Z still undoes it. Plain `value =` assignment would wipe the undo history. Falls back to `value =` if `insertText` is unavailable.
+- With four buttons the toolbar wraps to two rows at phone width (it already has `flex-wrap`). Not changing the layout.
+
+Risks: low. Additive. The in-place rewrite is destructive, which is why undo is preserved.
+
+Needs a real-device check after build:
+- [ ] Paste a real WhatsApp message (bold, italic, strike, list, quote), convert, and confirm the preview looks right.
+- [ ] Undo restores the original text on desktop. On Android, check the keyboard's undo.
+- [ ] Footer buttons wrap sensibly at phone width.
+
 ## Build Planner
 
 **Ideas**
 - **Telegram and Slack copy buttons.** Reuse `markdownToWhatsApp` as the base, with a per-target mapping table (Telegram MarkdownV2 and Slack mrkdwn differ from WhatsApp). Not designed, not authorized.
 - **Auto-split long documents for WhatsApp.** Split at headings so each piece fits under WhatsApp's length cap (about 65k chars), with one copy button per piece, like the existing chunk bar. Not designed, not authorized.
 - **Live WhatsApp preview pane.** A third pane (or toggle) showing the WhatsApp text as it will paste, so it can be checked before copying. Not designed, not authorized.
-- **Convert from WhatsApp to Markdown.** A "Convert from WhatsApp" button that rewrites the Markdown pane in place: `*x*` to `**x**`, `_x_` to `*x*`, `~x~` to `~~x~~`, `☐`/`☑` to task items, `———` to a rule; code, quotes and lists already match. Lossy: a standalone `*TEXT*` line could be a heading or just bold, monospace blocks could be tables or code, and `snake_case_words` can false-trigger. Open questions: button vs auto-detect on paste, and bold paragraph (Claude's pick) vs `##` heading. Not designed, not authorized.
 
 **Bugs (found, not fixed)**
 - **Footnote paragraph split.** `Text[^1]` followed by a `[^1]:` definition splits into two paragraphs, in the preview and in the WhatsApp output. Cause: the footnote extension's block `start()` cuts the paragraph at `[^`. Not authorized.
