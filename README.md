@@ -20,9 +20,9 @@ Swap the five placeholder PNGs in `icons/` for versions made from Jon's art (rob
 
 Risks: low, image files only. The maskable seam is the one thing that could look off.
 
-Needs a real-device check after build:
-- [ ] Home screen icon on Android looks right (not clipped).
-- [ ] Tab favicon is recognizable.
+Needs a real-device check after build (Jon uses a Google Pixel 7 only, no computer):
+- [ ] Pixel 7 home screen: the icon is not clipped by the launcher's circle/squircle mask, and the MD, Docs and WhatsApp badges are visible.
+- [ ] Chrome on the Pixel: the favicon is recognizable in the tab switcher.
 
 ### Q4. "Convert from WhatsApp" button — **Not yet authorized**
 
@@ -37,15 +37,15 @@ Add a "Convert from WhatsApp" button to the footer toolbar. The user pastes What
 - Empty pane: toast "Nothing to convert yet". Success: toast "✓ Converted from WhatsApp", then the preview re-renders.
 
 *(Added by Claude. Change before authorizing if wanted.)*
-- The rewrite uses `select()` + `document.execCommand('insertText')` so Ctrl+Z still undoes it. Plain `value =` assignment would wipe the undo history. Falls back to `value =` if `insertText` is unavailable.
-- With four buttons the toolbar wraps to two rows at phone width (it already has `flex-wrap`). Not changing the layout.
+- Undo is in-app, because Jon has no keyboard shortcuts (Pixel 7 only). Before converting, the original text is kept in a variable. The success toast gets an **Undo** button, visible about 8 seconds. Tapping it puts the original text back and re-renders. No `execCommand` trick.
+- With four buttons the toolbar wraps to two rows at Pixel 7 width (it already has `flex-wrap`). Not changing the layout.
 
-Risks: low. Additive. The in-place rewrite is destructive, which is why undo is preserved.
+Risks: low. Additive. The in-place rewrite is destructive, which is why the Undo toast exists. The toast currently has no buttons, so it needs a small tweak to hold one (new element inside `#toast`, same fade timing but longer for this case).
 
 Needs a real-device check after build:
-- [ ] Paste a real WhatsApp message (bold, italic, strike, list, quote), convert, and confirm the preview looks right.
-- [ ] Undo restores the original text on desktop. On Android, check the keyboard's undo.
-- [ ] Footer buttons wrap sensibly at phone width.
+- [ ] On the Pixel 7: paste a real WhatsApp message (bold, italic, strike, list, quote), tap Convert, and confirm the preview looks right.
+- [ ] Tap Undo in the toast within a few seconds and confirm the original text comes back.
+- [ ] Footer buttons wrap sensibly at Pixel 7 width.
 
 ## Build Planner
 
