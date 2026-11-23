@@ -204,6 +204,27 @@ footer { flex-shrink: 0; }
   z-index: 2000;
   box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
+/* Undo button inside the toast (used after "Convert from WhatsApp"). #toast itself ignores taps,
+   so only this button is tappable. Negative margins grow the tap target without growing the pill. */
+#toast .toast-undo {
+  pointer-events: auto;
+  background: none;
+  border: none;
+  color: #8ab4f8;
+  font: inherit;
+  font-weight: 700;
+  margin: -14px -16px -14px 6px;
+  padding: 14px 16px;
+  vertical-align: middle;
+  cursor: pointer;
+}
+/* The base toast sits at left:50%, so a long message wraps into half the screen. Size to content
+   and lift it clear of the footer's second button row while the Undo button is showing. */
+#toast:has(.toast-undo) {
+  width: max-content;
+  max-width: 90vw;
+  bottom: 140px;
+}
 
 /* Telemetry content (lives inside the preview pane header area when not minimized, as a collapsible row) */
 .telemetry {
@@ -364,6 +385,7 @@ C --> D[Clipboard]
     <div class="chunk-bar" id="chunk-bar"></div>
     <div class="toolbar">
       <button class="btn secondary" id="clear-btn">Clear Document</button>
+      <button class="btn secondary" id="wa-import-btn">Convert from WhatsApp</button>
       <button class="btn" id="copy-btn">Copy Rich HTML</button>
       <button class="btn" id="wa-copy-btn">Copy for WhatsApp</button>
     </div>
@@ -1116,6 +1138,84 @@ document.getElementById('wa-copy-btn').addEventListener('click', copyWhatsAppToC
 document.getElementById('clear-btn').addEventListener('click', () => {
   inputEl.value = '';
   render();
+});
+
+/* ============ WHATSAPP IMPORT ============ */
+// Converts pasted WhatsApp-formatted text to Markdown (the reverse of markdownToWhatsApp).
+// Line-based, not one big regex: fenced blocks and inline code are never touched, and the
+// emphasis rules copy WhatsApp's own: a marker needs non-space text inside it and a non-word
+// character outside it, so snake_case_words and "2 * 3 * 4" are left alone.
+// Lossy by design: monospace blocks (could be tables or code) and "text (url)" (could be a link
+// or plain text) stay as they are, and a standalone *bold* line stays a bold paragraph.
+function whatsAppToMarkdown(text) {
+  // Private-use placeholders for finished bold markers. WhatsApp bold (*x*) becomes Markdown
+  // bold (**x**), but italic (_x_) becomes *x*; converting bold to placeholders first stops the
+  // new single asterisks from being re-read as bold. Combined _*x*_ / *_x_* fall out of this
+  // naturally and both end up as ***x***.
+  const B_OPEN = '', B_CLOSE = '';
+  const bold   = /(?<![\p{L}\p{N}*])\*(?![\s*])([^\n]*?[^\s*])\*(?![\p{L}\p{N}*])/gu;
+  const italic = /(?<![\p{L}\p{N}_])_(?![\s_])([^\n]*?[^\s_])_(?![\p{L}\p{N}_])/gu;
+  const strike = /(?<![\p{L}\p{N}~])~(?![\s~])([^\n]*?[^\s~])~(?![\p{L}\p{N}~])/gu;
+
+  const convertInline = (line) => line.split(/(`[^`\n]+`)/).map((part, i) => {
+    if (i % 2 === 1) return part; // inline code span, leave exactly as typed
+    return part
+      .replace(bold, B_OPEN + '$1' + B_CLOSE)
+      .replace(italic, '*$1*')
+      .replace(strike, '~~$1~~')
+      .split(B_OPEN).join('**').split(B_CLOSE).join('**');
+  }).join('');
+
+  let inFence = false;
+  return text.replace(/\r\n?/g, '\n').split('\n').map((line) => {
+    if (/^\s*```/.test(line)) { inFence = !inFence; return line; }
+    if (inFence) return line;
+    if (/^\s*[—–]{3,}\s*$/.test(line)) return '---';
+    // Task markers: keep the indent, swap the symbol for a Markdown task item.
+    line = line.replace(/^(\s*)☑\s?/, '$1- [x] ').replace(/^(\s*)☐\s?/, '$1- [ ] ');
+    return convertInline(line);
+  }).join('\n');
+}
+
+// Undo toast: the toast normally has no buttons, so this builds its own content. The pane's
+// original text is kept by the caller, and tapping Undo hands control back to it. The hide
+// timer only fires if the Undo button is still showing, so a newer plain toast isn't cut short.
+let undoToastTimer = null;
+function showUndoToast(msg, onUndo) {
+  clearTimeout(undoToastTimer);
+  const hide = () => {
+    const btn = toastEl.querySelector('.toast-undo');
+    if (!btn) return; // a newer toast replaced this one
+    toastEl.style.opacity = '0';
+    btn.style.pointerEvents = 'none'; // keep the invisible button from catching taps
+  };
+  const label = document.createElement('span');
+  label.textContent = msg;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'toast-undo';
+  btn.textContent = 'Undo';
+  btn.addEventListener('click', () => { clearTimeout(undoToastTimer); hide(); onUndo(); });
+  toastEl.textContent = '';
+  toastEl.append(label, btn);
+  toastEl.style.opacity = '1';
+  undoToastTimer = setTimeout(hide, 8000);
+}
+
+document.getElementById('wa-import-btn').addEventListener('click', () => {
+  const original = inputEl.value;
+  if (original.trim() === '') { showToast('Nothing to convert yet'); return; }
+  const converted = whatsAppToMarkdown(original);
+  if (converted === original) { showToast('No WhatsApp formatting found'); return; }
+  inputEl.value = converted;
+  render(); // programmatic edits fire no input event, so render now instead of waiting on the debounce
+  showUndoToast('✓ Converted from WhatsApp', () => {
+    // Refuse if the text was edited since, so Undo can never wipe newer typing.
+    if (inputEl.value !== converted) { showToast("Text changed since converting, can't undo"); return; }
+    inputEl.value = original;
+    render();
+    showToast('✓ Undone');
+  });
 });
 
 function waitForLibsAndRender(attemptsLeft) {

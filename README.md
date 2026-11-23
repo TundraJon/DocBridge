@@ -3,28 +3,7 @@ Markdown to Docs pipeline
 
 ## Build Queue
 
-### Q4. "Convert from WhatsApp" button — **Not yet authorized**
-
-Add a "Convert from WhatsApp" button to the footer toolbar. The user pastes WhatsApp-formatted text into the Markdown pane, clicks it, and the pane's text is rewritten as Markdown in place. Manual button, no auto-detect (Jon's call). Nothing else changes.
-
-- New button `#wa-import-btn` in the footer toolbar, next to `#clear-btn`.
-- New `whatsAppToMarkdown(text)` in `index.html`. Line-based, not blind regex: fenced blocks and inline code are lifted out first and restored untouched.
-- Mapping: `*x*` to `**x**`, `_x_` to `*x*`, `~x~` to `~~x~~`, `_*x*_` / `*_x_*` to `***x***`, `☑` / `☐` to `- [x]` / `- [ ]`, `———` to `---`. `> ` quotes, `- ` bullets, `1.` numbers and code already match Markdown.
-- Standalone bold line: stays a bold paragraph, not a heading (Jon's call).
-- Left as is, because it can't be told apart: monospace blocks (could be tables or code) and `text (url)` (could be a link or plain text).
-- Boundary-aware, like WhatsApp itself: a marker needs non-space text inside it and a word boundary outside, so `snake_case_words` and `2 * 3 * 4` are not converted.
-- Empty pane: toast "Nothing to convert yet". Success: toast "✓ Converted from WhatsApp", then the preview re-renders.
-
-*(Added by Claude. Change before authorizing if wanted.)*
-- Undo is in-app, because Jon has no keyboard shortcuts (Pixel 7 only). Before converting, the original text is kept in a variable. The success toast gets an **Undo** button, visible about 8 seconds. Tapping it puts the original text back and re-renders. No `execCommand` trick.
-- With four buttons the toolbar wraps to two rows at Pixel 7 width (it already has `flex-wrap`). Not changing the layout.
-
-Risks: low. Additive. The in-place rewrite is destructive, which is why the Undo toast exists. The toast currently has no buttons, so it needs a small tweak to hold one (new element inside `#toast`, same fade timing but longer for this case).
-
-Needs a real-device check after build:
-- [ ] On the Pixel 7: paste a real WhatsApp message (bold, italic, strike, list, quote), tap Convert, and confirm the preview looks right.
-- [ ] Tap Undo in the toast within a few seconds and confirm the original text comes back.
-- [ ] Footer buttons wrap sensibly at Pixel 7 width.
+_Empty — nothing here yet._
 
 ## Build Planner
 
@@ -37,6 +16,7 @@ Needs a real-device check after build:
 - **Footnote paragraph split.** `Text[^1]` followed by a `[^1]:` definition splits into two paragraphs, in the preview and in the WhatsApp output. Cause: the footnote extension's block `start()` cuts the paragraph at `[^`. Not authorized.
 - **Inline HTML dropped from WhatsApp output.** A literal `<tag>` typed in the source is treated as HTML and stripped, not copied as text. Not authorized.
 - **Startup error when a CDN fails.** If marked, KaTeX, highlight.js or Mermaid fails to load, `mermaid.initialize(...)` throws "mermaid is not defined" at startup. Not authorized.
+- **WhatsApp import merges single line breaks.** In WhatsApp a single newline is a line break, but the app renders Markdown with `breaks: false`, so consecutive lines in converted text merge into one paragraph in the preview. Possible fix: have the converter add a hard break (two trailing spaces) where a plain text line is followed by another plain text line. Not authorized.
 
 ## Build Log
 
@@ -103,3 +83,25 @@ Needs a real-device check (Pixel 7 only):
 - [ ] Home screen icon is not clipped by the launcher mask and the badges are visible.
 - [ ] Favicon is recognizable in Chrome's tab switcher.
 - [ ] Clear the old icon first: remove the installed app and reinstall, since Android caches the installed icon.
+
+### 5. Convert from WhatsApp button (Q4)
+- [x] `index.html`: new `#wa-import-btn` "Convert from WhatsApp" in the footer toolbar, right after `#clear-btn` (same secondary style).
+- [x] `index.html`: new `whatsAppToMarkdown(text)`. Line-based; fenced blocks and inline code are never touched. `*x*` to `**x**`, `_x_` to `*x*`, `~x~` to `~~x~~`, `_*x*_` / `*_x_*` to `***x***`, `☑` / `☐` to `- [x]` / `- [ ]`, `———` to `---`. Emphasis uses WhatsApp's own boundary rule (non-space inside, non-word outside), so `snake_case_words` and `2 * 3 * 4` are left alone. Monospace blocks and `text (url)` stay as they are. A standalone bold line stays a bold paragraph.
+- [x] `index.html`: new `showUndoToast(msg, onUndo)` (builds its own toast content with an Undo button, hides after 8s) and the click handler for `#wa-import-btn` (reads the pane, converts, writes back, calls `render()`).
+- [x] `index.html` CSS: new rules `#toast .toast-undo` and `#toast:has(.toast-undo)`. Nothing existing changed, and `showToast` is untouched.
+
+Added beyond the spec (small, in the spirit of it):
+- Undo refuses if the pane text was edited after converting ("Text changed since converting, can't undo"), so it can never wipe newer typing.
+- If the text has no WhatsApp formatting to convert, toast "No WhatsApp formatting found" instead of offering a pointless Undo.
+- While the Undo button shows, the toast is sized to its content and lifted to `bottom: 140px`. At the base position it wrapped onto two lines (it is `left: 50%`, so it only gets half the screen width) and sat over the toolbar.
+
+Verification: Drove the real page in Chromium with a Pixel 7 emulation (412x915, touch, taps not clicks), libraries served locally. 13 checks pass: empty-pane toast; a 19-line mixed document converts to the exact expected Markdown (bold, italic, strike, bold+italic both orders, nested lists, tasks, quote, fenced block untouched, inline code untouched, rule, link text, accented letters); preview re-renders; Undo restores the original; Undo is refused after an edit; no-formatting toast; toast hides after about 8s and the hidden button ignores taps; a newer plain toast is not cut short by the old timer; Markdown to WhatsApp and back keeps formatting, lists and quotes; no horizontal overflow. 0 JS errors. Screenshots viewed: the footer wraps into two rows (Clear + Convert on top, the two copy buttons below) and the Undo toast sits on one line clear of the buttons.
+
+Noted, not fixed:
+- Single line breaks in WhatsApp text merge into one paragraph in the preview (added to the Planner).
+- `:has()` is used for the toast rule. Fine on current Chrome (Pixel 7); an old WebView would show the narrow wrapped toast, which still works.
+
+Needs a real-device check (Pixel 7 only):
+- [ ] Paste a real WhatsApp message (bold, italic, strike, list, quote), tap Convert, and confirm the preview looks right.
+- [ ] Tap Undo in the toast within a few seconds and confirm the original text comes back.
+- [ ] Footer buttons wrap sensibly and the Undo toast is easy to tap.
