@@ -3,27 +3,6 @@ Markdown to Docs pipeline
 
 ## Build Queue
 
-### Q3. Replace placeholder icons with Jon's robot-on-bridge art — **Not yet authorized**
-
-Swap the five placeholder PNGs in `icons/` for versions made from Jon's art (robot holding a document on a stone bridge, with MD, Docs and WhatsApp badges). Same filenames, so `manifest.json` and the `<head>` tags need no change.
-
-- Keep the original as `icons/icon-source.jpg` so the PNGs can be regenerated later.
-- `icon-192.png`, `icon-512.png` (any): crop slightly into the art to drop the JPG's white corners, then cut a rounded shape on a transparent background.
-- `icon-maskable-512.png`: full-bleed square. Art scaled down so the MD, Docs and WhatsApp badges stay inside Android's circular safe zone, centered on a sky-to-water gradient sampled from the art's top and bottom edges, edges feathered so there is no hard seam.
-- `apple-touch-icon-180.png`: full-bleed square crop, no transparency.
-- `favicon-32.png`: crop to the robot's head and shoulders (the full scene is unreadable at 32px).
-- Generation is a scratch script (not committed). Each PNG is viewed before commit.
-
-*(Added by Claude. Change before authorizing if wanted.)*
-- Maskable scale about 75%, adjusted after viewing so the badges are clear of the edge.
-- Source art kept in the repo (adds the JPG's file size).
-
-Risks: low, image files only. The maskable seam is the one thing that could look off.
-
-Needs a real-device check after build (Jon uses a Google Pixel 7 only, no computer):
-- [ ] Pixel 7 home screen: the icon is not clipped by the launcher's circle/squircle mask, and the MD, Docs and WhatsApp badges are visible.
-- [ ] Chrome on the Pixel: the favicon is recognizable in the tab switcher.
-
 ### Q4. "Convert from WhatsApp" button — **Not yet authorized**
 
 Add a "Convert from WhatsApp" button to the footer toolbar. The user pastes WhatsApp-formatted text into the Markdown pane, clicks it, and the pane's text is rewritten as Markdown in place. Manual button, no auto-detect (Jon's call). Nothing else changes.
@@ -105,3 +84,22 @@ Needs a real-device check:
 - [ ] Chrome Android: "Install app" appears (no service worker, so older versions may only offer "Add to Home screen") and the home screen icon looks right.
 - [ ] iOS Safari: Add to Home Screen uses the apple-touch icon.
 - [ ] Desktop tab shows the favicon.
+
+### 4. Robot-on-bridge icon art (Q3)
+- [x] `icons/icon-source.jpg` added: Jon's original art, kept so the PNGs can be regenerated.
+- [x] `icons/icon-192.png`, `icons/icon-512.png` replaced: full art, transparent rounded corners (3px inset to lose the JPG's white fringe).
+- [x] `icons/apple-touch-icon-180.png` replaced: full-bleed square, white corners filled from neighboring pixels.
+- [x] `icons/icon-maskable-512.png` replaced: art at 78% on a vertical sky-to-water gradient sampled from the art's top, middle and bottom rows, soft-edged.
+- [x] `icons/favicon-32.png` replaced: robot head crop with rounded corners.
+- [x] No change to `manifest.json` or `index.html` (same filenames).
+
+Differences from the Q3 spec:
+- The spec said to crop into the art to drop the JPG's white corners. The MD and WhatsApp badges sit within about 40px of the edges, so cropping would have clipped them. The "any" icons use a transparent rounded mask instead, and the Apple icon fills the corners instead of cropping.
+- Maskable scale is 78% (spec said about 75%, adjust after viewing).
+
+Verification: Generated with a scratch script (not committed). Viewed every size. On the maskable icon I drew the 80% safe circle and also simulated a full circular launcher mask: the robot and the MD, Docs and WhatsApp badges all stay visible. A first maskable backdrop (blurred copy of the art) looked muddy with a visible halo, so I replaced it with the plain gradient. Chrome's `Page.getAppManifest` and `Page.getInstallabilityErrors` on the new files: no errors.
+
+Needs a real-device check (Pixel 7 only):
+- [ ] Home screen icon is not clipped by the launcher mask and the badges are visible.
+- [ ] Favicon is recognizable in Chrome's tab switcher.
+- [ ] Clear the old icon first: remove the installed app and reinstall, since Android caches the installed icon.
